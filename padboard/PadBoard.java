@@ -1,42 +1,42 @@
 package padboard;
 
-import java.util.ArrayList;
-
 public class PadBoard {
 	public static final int SIZE_5x4 = -1, SIZE_6x5 = 0, SIZE_7x6 = 1;
 	private final int size;
 	private final byte[][] orbs;
 	
-	private int blankRows = 0;
+	private int blankRows = 0, offColor = 0;
 	
 	public PadBoard(int size) {
 		this.size = size;
 		this.orbs = new byte[6 + size][5 + size];
 	}
 	
-	public PadBoard(int size, int offColor) {
+	public PadBoard(int size, long seed) {
 		this(size);
-		
-		for(int i = 0; i < offColor && i < (6 + size) * (5 + size); i++) {
-			int x = util.Random.random(0, 6 + size -1),
-				y = util.Random.random(0, 5 + size -1);
-			
-			if(this.orbs[x][y] == 0) {
-				this.orbs[x][y] = 1;
-			} else {
-				i--;
+
+		for(int x = 0; x < 6 + size; x++) {
+			for(int y = 0; y < 5 + size; y++) {
+				if((seed & 1l) == 1l) {
+					this.orbs[x][y] = 1;
+					this.offColor++;
+				}
+				seed = seed >> 1;
 			}
 		}
 	}
 	
-	private ArrayList<Match> matches;
-	private ArrayList<Match> getMatches() {
+	public int getOffColor() { return this.offColor; }
+	
+	private Match[] matches;
+	private Match[] getMatches() {
 		if(this.matches != null) return this.matches;
 		
-		ArrayList<Match> matchParts = new ArrayList<Match>();
+		int matchPartCount = 0;
+		Match[] matchParts = new Match[26]; // Unless I've made a mistake, max should be 12 horizontal and 14 vertical (pre-merge).
 		
 		if(this.blankRows > 5 + size - 3) {
-			this.matches = matchParts;
+			this.matches = new Match[] {};
 			return this.matches;
 		}
 		
@@ -61,7 +61,7 @@ public class PadBoard {
 										matchPart.orbs[partX][y] = true;
 										if(partX > 0 && partX < 6 + size - 2) matchedHorizontal[partX-1][y] = true;
 									}
-									matchParts.add(matchPart);
+									matchParts[matchPartCount++] = matchPart;
 								}
 								break;
 							}
@@ -80,7 +80,7 @@ public class PadBoard {
 										matchPart.orbs[x][partY] = true;
 										if(partY > 0 && partY < 5 + size - 2) matchedVertical[x][partY-1] = true;
 									}
-									matchParts.add(matchPart);
+									matchParts[matchPartCount++] = matchPart;
 								}
 								break;
 							}
@@ -93,23 +93,28 @@ public class PadBoard {
 		
 		// Consolidate
 		// Merges intersecting and adjacent (4-neighborhood) matches, just like the game does.
-		for(int i = 0; i < matchParts.size(); i++) {
-			for(int j = i + 1; j < matchParts.size(); j++) {
-				if(matchParts.get(i).mergeWith(matchParts.get(j))) {
-					matchParts.remove(j);
+		for(int i = 0; i < matchPartCount; i++) {
+			for(int j = i + 1; j < matchPartCount; j++) {
+				if(matchParts[i].mergeWith(matchParts[j])) {
+					matchParts[j] = matchParts[matchPartCount -1];
+					matchParts[matchPartCount -1] = null;
+					matchPartCount--;
 					j = i;
 				}
 			}
 		}
-
-		this.matches = matchParts;
+		
+		this.matches = new Match[matchPartCount];
+		for(int i = 0; i < matchPartCount; i++) {
+			this.matches[i] = matchParts[i];
+		}
+		
 		return this.matches;
 	}
 	
 	private PadBoard droppedMatches;
 	public PadBoard dropMatches() {
-		ArrayList<Match> matches = this.getMatches();
-		if(matches.size() == 0) return null;
+		if(this.getMatches().length == 0) return null;
 		
 		if(this.droppedMatches != null) return this.droppedMatches;
 		this.droppedMatches = new PadBoard(this.size);
@@ -140,7 +145,7 @@ public class PadBoard {
 		if(this.matchedArray != null) return this.matchedArray;
 		this.matchedArray = new boolean[6 + size][5 + size];
 		
-		ArrayList<Match> matches = this.getMatches();
+		Match[] matches = this.getMatches();
 		
 		for(int x = 0; x < 6 + size; x++) {
 			for(int y = this.blankRows; y < 5 + size; y++) {
@@ -170,19 +175,30 @@ public class PadBoard {
 	public int rate(Rater r) {
 		if(this.rating >= 0) return this.rating;
 		
-		ArrayList<Match> matches = this.getDeepMatches();
+		Match[] matches = this.getDeepMatches();
 		this.rating = r.rate(matches);
 		
 		return this.rating;
 	}
 
-	private ArrayList<Match> getDeepMatches() {
-		ArrayList<Match> ret = new ArrayList<Match>();
-		ret.addAll(this.getMatches());
+	private Match[] getDeepMatches() {
+		Match[] matches = this.getMatches();
+		int matchCount = matches.length;
+		
+		Match[] ret = new Match[14];
+		for(int i = 0; i < matchCount; i++) {
+			ret[i] = matches[i];
+		}
 		
 		PadBoard next = this.dropMatches();
-		while(next != null && next.getMatches().size() != 0) {
-			ret.addAll(next.getMatches());
+		while(next != null && next.getMatches().length != 0) {
+			matches = next.getMatches();
+
+			for(int i = 0; i < matches.length; i++) {
+				ret[i + matchCount] = matches[i];
+			}
+			matchCount += matches.length;
+			
 			next = next.dropMatches();
 		}
 		
