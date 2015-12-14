@@ -24,6 +24,8 @@ public class PadBoard {
 				seed = seed >> 1;
 			}
 		}
+		
+		this.getMatches();
 	}
 	
 	public int getOffColor() { return this.offColor; }
@@ -45,6 +47,8 @@ public class PadBoard {
 				    matchedVertical   = new boolean[6 + size][5 + size - 3]; // height -3, same idea.
 		
 		for(int x = 0; x < 6 + size; x++) {
+			if(this.orbs[x][5 + size -1] == -1) continue;
+			
 			for(int y = this.blankRows; y < 5 + size; y++) {
 				int attribute = this.orbs[x][y];
 				
@@ -56,11 +60,13 @@ public class PadBoard {
 							if(matchingX >= 6 + size || this.orbs[matchingX][y] != attribute) {
 								int matchLength = matchingX - x;
 								if(matchLength >= 3) {
-									Match matchPart = new Match(attribute, matchLength, this.size);
+									Match matchPart = new Match(attribute, matchLength);
 									for(int partX = x; partX < matchingX; partX++) {
 										matchPart.orbs[partX][y] = true;
 										if(partX > 0 && partX < 6 + size - 2) matchedHorizontal[partX-1][y] = true;
 									}
+									matchPart.setBounds(x, y, matchingX -1, y);
+									if(matchLength == 6 + size) matchPart.isRow = true;
 									matchParts[matchPartCount++] = matchPart;
 								}
 								break;
@@ -75,11 +81,12 @@ public class PadBoard {
 							if(matchingY >= 5 + size || this.orbs[x][matchingY] != attribute) {
 								int matchLength = matchingY - y;
 								if(matchLength >= 3) {
-									Match matchPart = new Match(attribute, matchLength, this.size);
+									Match matchPart = new Match(attribute, matchLength);
 									for(int partY = y; partY < matchingY; partY++) {
 										matchPart.orbs[x][partY] = true;
 										if(partY > 0 && partY < 5 + size - 2) matchedVertical[x][partY-1] = true;
 									}
+									matchPart.setBounds(x, y, x, matchingY -1);
 									matchParts[matchPartCount++] = matchPart;
 								}
 								break;
@@ -114,7 +121,7 @@ public class PadBoard {
 	
 	private PadBoard droppedMatches;
 	public PadBoard dropMatches() {
-		if(this.getMatches().length == 0) return null;
+		if(this.matches.length == 0) return null;
 		
 		if(this.droppedMatches != null) return this.droppedMatches;
 		this.droppedMatches = new PadBoard(this.size);
@@ -137,19 +144,20 @@ public class PadBoard {
 			if(5 + size - columnHeight < this.droppedMatches.blankRows) this.droppedMatches.blankRows = 5 + size - columnHeight;
 		}
 		
+		this.droppedMatches.getMatches();
+		
 		return this.droppedMatches;
 	}
 	
 	private boolean[][] matchedArray;
 	private boolean[][] getMatchedArray() {
 		if(this.matchedArray != null) return this.matchedArray;
-		this.matchedArray = new boolean[6 + size][5 + size];
 		
-		Match[] matches = this.getMatches();
+		this.matchedArray = new boolean[6 + size][5 + size];
 		
 		for(int x = 0; x < 6 + size; x++) {
 			for(int y = this.blankRows; y < 5 + size; y++) {
-				for(Match m : matches) {
+				for(Match m : this.matches) {
 					if(m.orbs[x][y]) {
 						this.matchedArray[x][y] = true;
 						break;
@@ -182,22 +190,19 @@ public class PadBoard {
 	}
 
 	private Match[] getDeepMatches() {
-		Match[] matches = this.getMatches();
-		int matchCount = matches.length;
+		int matchCount = this.matches.length;
 		
 		Match[] ret = new Match[14];
 		for(int i = 0; i < matchCount; i++) {
-			ret[i] = matches[i];
+			ret[i] = this.matches[i];
 		}
 		
 		PadBoard next = this.dropMatches();
-		while(next != null && next.getMatches().length != 0) {
-			matches = next.getMatches();
-
-			for(int i = 0; i < matches.length; i++) {
-				ret[i + matchCount] = matches[i];
+		while(next != null && next.matches.length != 0) {
+			for(int i = 0; i < next.matches.length; i++) {
+				ret[i + matchCount] = next.matches[i];
 			}
-			matchCount += matches.length;
+			matchCount += next.matches.length;
 			
 			next = next.dropMatches();
 		}
