@@ -1,5 +1,5 @@
 package padboard;
 
-public abstract class Rater {
+public interface Rater {
 	public abstract int rate(Match[] matches);
 }

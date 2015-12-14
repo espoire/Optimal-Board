@@ -1,18 +1,18 @@
 package padboard;
 
-public class AYomiRater extends Rater {
+public class AYomiRater implements Rater {
 	private static final byte enhancedDark = 12, darkATK = 4, prongVal = 3; // 4:3 is a close approximation of the true ratio, using ints over floats saves ~0.7% run time.
 	private static final float enhancedMult = 1 + 0.05f * enhancedDark;
 	
 	@Override
 	public int rate(Match[] matches) {
-		int combos = matches.length;
+		int combos = 0;
 		boolean activated = false;
-		
 		int baseDmg = 0;
 		
 		for(Match m : matches) {
 			if(m == null) break;
+			combos++;
 			if(m.attribute == 0) {
 				if(m.breakSize == 5) activated = true;
 				int ATK = darkATK + (m.breakSize == 4 ? prongVal : 0);

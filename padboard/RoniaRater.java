@@ -1,16 +1,16 @@
 package padboard;
 
-public class RoniaRater extends Rater {
+public class RoniaRater implements Rater {
 	private static final byte darkATK = 4, prongVal = 2;
 	
 	@Override
 	public int rate(Match[] matches) {
-		int combos = matches.length;
-		
+		int combos = 0;
 		int baseDmg = 0;
 		
 		for(Match m : matches) {
 			if(m == null) break;
+			combos++;
 			if(m.attribute == 0) {
 				int ATK = darkATK + (m.breakSize == 4 ? prongVal : 0);
 				int sizeMult = 3 + m.breakSize;

@@ -1,17 +1,17 @@
 package padboard;
 
-public class ShivaDraRater extends Rater {
+public class ShivaDraRater implements Rater {
 	private static final byte fireATK = 6, prongVal = 5, fireRows = 9;
 	
 	@Override
 	public int rate(Match[] matches) {
-		int combos = matches.length;
-		
+		int combos = 0;
 		int baseDmg = 0;
 		int rows = 0;
 		
 		for(Match m : matches) {
 			if(m == null) break;
+			combos++;
 			if(m.attribute == 0) {
 				int ATK = fireATK + (m.breakSize == 4 ? prongVal : 0);
 				int sizeMult = 3 + m.breakSize;
