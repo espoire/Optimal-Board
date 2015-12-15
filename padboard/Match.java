@@ -1,7 +1,7 @@
 package padboard;
 
 public class Match {
-	private static final int BOARD_SIZE = PadBoard.SIZE_5x4,
+	private static final int BOARD_SIZE = Main.BOARD_SIZE,
 							 BOARD_WIDTH = 6 + BOARD_SIZE,
 							 BOARD_HEIGHT = 5 + BOARD_SIZE;
 	

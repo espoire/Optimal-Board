@@ -5,18 +5,41 @@ public class PadBoard {
 	private final int size;
 	private final byte[][] orbs;
 	
-	private int blankRows = 0, offColor = 0;
+	private int blankRows = 0,
+				offColor  = 0;
+	private final int rows, columns;
 	
 	public PadBoard(int size) {
 		this.size = size;
-		this.orbs = new byte[6 + size][5 + size];
+		this.columns = 6 + size;
+		this.rows = 5 + size;
+		this.orbs = new byte[columns][rows];
 	}
 	
+	/* seed -> board mapping
+	 * 
+	 * 5x4
+	 * 0  4  8 16 12
+	 * 1  5  9 17 13
+	 * 2  6 10 18 14
+	 * 3  7 11 19 15
+	 * 
+	 * 
+	 */
 	public PadBoard(int size, long seed) {
 		this(size);
 
-		for(int x = 0; x < 6 + size; x++) {
-			for(int y = 0; y < 5 + size; y++) {
+		for(int x = 0; x <= columns/2; x++) {
+			for(int y = 0; y < rows; y++) {
+				if((seed & 1l) == 1l) {
+					this.orbs[x][y] = 1;
+					this.offColor++;
+				}
+				seed = seed >> 1;
+			}
+		}
+		for(int x = columns -1; x > columns/2; x--) {
+			for(int y = 0; y < rows; y++) {
 				if((seed & 1l) == 1l) {
 					this.orbs[x][y] = 1;
 					this.offColor++;
@@ -178,15 +201,15 @@ public class PadBoard {
 			System.out.println();
 		}
 	}
-
-	private int rating = -1;
-	public int rate(Rater r) {
-		if(this.rating >= 0) return this.rating;
-		
-		Match[] matches = this.getDeepMatches();
-		this.rating = r.rate(matches);
-		
-		return this.rating;
+	
+	/**
+	 * Returns the board's and its compliment's (on/off color orb switched) score, per the provider Rater.
+	 * 
+	 * @param r - Rater to score the board's combos.
+	 * @return int[] {board's score, compliment's score}
+	 */
+	public int[] rate(Rater r) {
+		return r.rate(this.getDeepMatches());
 	}
 
 	private Match[] getDeepMatches() {
@@ -208,5 +231,16 @@ public class PadBoard {
 		}
 		
 		return ret;
+	}
+
+	private static final long LEFT_SIDE_MASK = (1L << ((Main.BOARD_COLUMNS/2) * Main.BOARD_ROWS)) - 1;
+	private static final int RIGHT_SIDE_POSITION = Main.BOARD_AREA - ((Main.BOARD_COLUMNS/2) * Main.BOARD_ROWS);
+	/** Returns true if [the board for this seed]'s left-right mirror will already have been produced by a lesser seed.
+	 * 
+	 * @param seed
+	 */
+	public static boolean mirrorPrecedes(long seed) {
+		return ((seed & LEFT_SIDE_MASK) < (seed >> RIGHT_SIDE_POSITION)) || ((seed & LEFT_SIDE_MASK) > ((seed >> RIGHT_SIDE_POSITION) ^ LEFT_SIDE_MASK));
+		      //  ????????xxxxABCDABCD  <  ABCDABCDxxxx????????
 	}
 }
