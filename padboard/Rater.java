@@ -1,7 +1,5 @@
 package padboard;
 
-import java.util.ArrayList;
-
-public abstract class Rater {
-	public abstract int rate(ArrayList<Match> matches);
+public interface Rater {
+	public abstract int[] rate(Match[] matches);
 }

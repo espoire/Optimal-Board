@@ -1,42 +1,67 @@
 package padboard;
 
-import java.util.ArrayList;
-
 public class PadBoard {
 	public static final int SIZE_5x4 = -1, SIZE_6x5 = 0, SIZE_7x6 = 1;
 	private final int size;
 	private final byte[][] orbs;
 	
-	private int blankRows = 0;
+	private int blankRows = 0,
+				offColor  = 0;
+	private final int rows, columns;
 	
 	public PadBoard(int size) {
 		this.size = size;
-		this.orbs = new byte[6 + size][5 + size];
+		this.columns = 6 + size;
+		this.rows = 5 + size;
+		this.orbs = new byte[columns][rows];
 	}
 	
-	public PadBoard(int size, int offColor) {
+	/* seed -> board mapping
+	 * 
+	 * 5x4
+	 * 0  4  8 16 12
+	 * 1  5  9 17 13
+	 * 2  6 10 18 14
+	 * 3  7 11 19 15
+	 * 
+	 * 
+	 */
+	public PadBoard(int size, long seed) {
 		this(size);
-		
-		for(int i = 0; i < offColor && i < (6 + size) * (5 + size); i++) {
-			int x = util.Random.random(0, 6 + size -1),
-				y = util.Random.random(0, 5 + size -1);
-			
-			if(this.orbs[x][y] == 0) {
-				this.orbs[x][y] = 1;
-			} else {
-				i--;
+
+		for(int x = 0; x <= columns/2; x++) {
+			for(int y = 0; y < rows; y++) {
+				if((seed & 1l) == 1l) {
+					this.orbs[x][y] = 1;
+					this.offColor++;
+				}
+				seed = seed >> 1;
 			}
 		}
+		for(int x = columns -1; x > columns/2; x--) {
+			for(int y = 0; y < rows; y++) {
+				if((seed & 1l) == 1l) {
+					this.orbs[x][y] = 1;
+					this.offColor++;
+				}
+				seed = seed >> 1;
+			}
+		}
+		
+		this.getMatches();
 	}
 	
-	private ArrayList<Match> matches;
-	private ArrayList<Match> getMatches() {
+	public int getOffColor() { return this.offColor; }
+	
+	private Match[] matches;
+	private Match[] getMatches() {
 		if(this.matches != null) return this.matches;
 		
-		ArrayList<Match> matchParts = new ArrayList<Match>();
+		int matchPartCount = 0;
+		Match[] matchParts = new Match[26]; // Unless I've made a mistake, max should be 12 horizontal and 14 vertical (pre-merge).
 		
 		if(this.blankRows > 5 + size - 3) {
-			this.matches = matchParts;
+			this.matches = new Match[] {};
 			return this.matches;
 		}
 		
@@ -45,6 +70,8 @@ public class PadBoard {
 				    matchedVertical   = new boolean[6 + size][5 + size - 3]; // height -3, same idea.
 		
 		for(int x = 0; x < 6 + size; x++) {
+			if(this.orbs[x][5 + size -1] == -1) continue;
+			
 			for(int y = this.blankRows; y < 5 + size; y++) {
 				int attribute = this.orbs[x][y];
 				
@@ -56,12 +83,14 @@ public class PadBoard {
 							if(matchingX >= 6 + size || this.orbs[matchingX][y] != attribute) {
 								int matchLength = matchingX - x;
 								if(matchLength >= 3) {
-									Match matchPart = new Match(attribute, matchLength, this.size);
+									Match matchPart = new Match(attribute, matchLength);
 									for(int partX = x; partX < matchingX; partX++) {
 										matchPart.orbs[partX][y] = true;
 										if(partX > 0 && partX < 6 + size - 2) matchedHorizontal[partX-1][y] = true;
 									}
-									matchParts.add(matchPart);
+									matchPart.setBounds(x, y, matchingX -1, y);
+									if(matchLength == 6 + size) matchPart.isRow = true;
+									matchParts[matchPartCount++] = matchPart;
 								}
 								break;
 							}
@@ -75,12 +104,13 @@ public class PadBoard {
 							if(matchingY >= 5 + size || this.orbs[x][matchingY] != attribute) {
 								int matchLength = matchingY - y;
 								if(matchLength >= 3) {
-									Match matchPart = new Match(attribute, matchLength, this.size);
+									Match matchPart = new Match(attribute, matchLength);
 									for(int partY = y; partY < matchingY; partY++) {
 										matchPart.orbs[x][partY] = true;
 										if(partY > 0 && partY < 5 + size - 2) matchedVertical[x][partY-1] = true;
 									}
-									matchParts.add(matchPart);
+									matchPart.setBounds(x, y, x, matchingY -1);
+									matchParts[matchPartCount++] = matchPart;
 								}
 								break;
 							}
@@ -93,23 +123,28 @@ public class PadBoard {
 		
 		// Consolidate
 		// Merges intersecting and adjacent (4-neighborhood) matches, just like the game does.
-		for(int i = 0; i < matchParts.size(); i++) {
-			for(int j = i + 1; j < matchParts.size(); j++) {
-				if(matchParts.get(i).mergeWith(matchParts.get(j))) {
-					matchParts.remove(j);
+		for(int i = 0; i < matchPartCount; i++) {
+			for(int j = i + 1; j < matchPartCount; j++) {
+				if(matchParts[i].mergeWith(matchParts[j])) {
+					matchParts[j] = matchParts[matchPartCount -1];
+					matchParts[matchPartCount -1] = null;
+					matchPartCount--;
 					j = i;
 				}
 			}
 		}
-
-		this.matches = matchParts;
+		
+		this.matches = new Match[matchPartCount];
+		for(int i = 0; i < matchPartCount; i++) {
+			this.matches[i] = matchParts[i];
+		}
+		
 		return this.matches;
 	}
 	
 	private PadBoard droppedMatches;
 	public PadBoard dropMatches() {
-		ArrayList<Match> matches = this.getMatches();
-		if(matches.size() == 0) return null;
+		if(this.matches.length == 0) return null;
 		
 		if(this.droppedMatches != null) return this.droppedMatches;
 		this.droppedMatches = new PadBoard(this.size);
@@ -132,19 +167,20 @@ public class PadBoard {
 			if(5 + size - columnHeight < this.droppedMatches.blankRows) this.droppedMatches.blankRows = 5 + size - columnHeight;
 		}
 		
+		this.droppedMatches.getMatches();
+		
 		return this.droppedMatches;
 	}
 	
 	private boolean[][] matchedArray;
 	private boolean[][] getMatchedArray() {
 		if(this.matchedArray != null) return this.matchedArray;
-		this.matchedArray = new boolean[6 + size][5 + size];
 		
-		ArrayList<Match> matches = this.getMatches();
+		this.matchedArray = new boolean[6 + size][5 + size];
 		
 		for(int x = 0; x < 6 + size; x++) {
 			for(int y = this.blankRows; y < 5 + size; y++) {
-				for(Match m : matches) {
+				for(Match m : this.matches) {
 					if(m.orbs[x][y]) {
 						this.matchedArray[x][y] = true;
 						break;
@@ -165,27 +201,46 @@ public class PadBoard {
 			System.out.println();
 		}
 	}
-
-	private int rating = -1;
-	public int rate(Rater r) {
-		if(this.rating >= 0) return this.rating;
-		
-		ArrayList<Match> matches = this.getDeepMatches();
-		this.rating = r.rate(matches);
-		
-		return this.rating;
+	
+	/**
+	 * Returns the board's and its compliment's (on/off color orb switched) score, per the provider Rater.
+	 * 
+	 * @param r - Rater to score the board's combos.
+	 * @return int[] {board's score, compliment's score}
+	 */
+	public int[] rate(Rater r) {
+		return r.rate(this.getDeepMatches());
 	}
 
-	private ArrayList<Match> getDeepMatches() {
-		ArrayList<Match> ret = new ArrayList<Match>();
-		ret.addAll(this.getMatches());
+	private Match[] getDeepMatches() {
+		int matchCount = this.matches.length;
+		
+		Match[] ret = new Match[14];
+		for(int i = 0; i < matchCount; i++) {
+			ret[i] = this.matches[i];
+		}
 		
 		PadBoard next = this.dropMatches();
-		while(next != null && next.getMatches().size() != 0) {
-			ret.addAll(next.getMatches());
+		while(next != null && next.matches.length != 0) {
+			for(int i = 0; i < next.matches.length; i++) {
+				ret[i + matchCount] = next.matches[i];
+			}
+			matchCount += next.matches.length;
+			
 			next = next.dropMatches();
 		}
 		
 		return ret;
+	}
+
+	private static final long LEFT_SIDE_MASK = (1L << ((Main.BOARD_COLUMNS/2) * Main.BOARD_ROWS)) - 1;
+	private static final int RIGHT_SIDE_POSITION = Main.BOARD_AREA - ((Main.BOARD_COLUMNS/2) * Main.BOARD_ROWS);
+	/** Returns true if [the board for this seed]'s left-right mirror will already have been produced by a lesser seed.
+	 * 
+	 * @param seed
+	 */
+	public static boolean mirrorPrecedes(long seed) {
+		return ((seed & LEFT_SIDE_MASK) < (seed >> RIGHT_SIDE_POSITION)) || ((seed & LEFT_SIDE_MASK) > ((seed >> RIGHT_SIDE_POSITION) ^ LEFT_SIDE_MASK));
+		      //  ????????xxxxABCDABCD  <  ABCDABCDxxxx????????
 	}
 }
